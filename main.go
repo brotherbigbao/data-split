@@ -6,10 +6,14 @@ import (
 	"github.com/liuyibao/migration/model"
 	"fmt"
 	"bytes"
+	"sync"
+	"log"
 )
 
 var DbGymSecond *sql.DB
 var DbGym *sql.DB
+
+var totalRecord int
 
 const SPAN  = 30
 
@@ -24,11 +28,14 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	log.SetPrefix("TRACE: ")
+	log.SetFlags(log.Ldate | log.Lmicroseconds)
 }
 
 func main()  {
 	var maxId, offset uint32
-	err := DbGym.QueryRow("SELECT MAX(id) FROM shop_member_follow_history").Scan(&maxId);
+	err := DbGym.QueryRow("SELECT MAX(id) FROM shop_member_follow_history_new").Scan(&maxId);
 	if err != nil {
 		panic(err)
 	}
@@ -36,14 +43,19 @@ func main()  {
 	for offset=0; offset<maxId; offset+=SPAN {
 		modelList := readData(offset, SPAN)
 		groups := groupData(modelList)
+		var wg sync.WaitGroup
+		wg.Add(len(groups))
 		for index,value := range groups {
-			writeData(index, value)
+			go writeData(&wg, index, value)
 		}
+		wg.Wait()
+		totalRecord += len(modelList)
+		log.Println("offset:", offset, "span:", offset+SPAN, "查询到数量:", len(modelList), "累计插入总数:", totalRecord)
 	}
 }
 
 func readData(offset uint32, span uint32) (modelList []model.ShopMemberFollowHistory) {
-	rows, err := DbGym.Query("SELECT * FROM shop_member_follow_history WHERE id>? AND id<=?", offset, offset+span)
+	rows, err := DbGym.Query("SELECT * FROM shop_member_follow_history_new WHERE id>? AND id<=?", offset, offset+span)
 	if err != nil {
 		panic(err)
 	}
@@ -105,7 +117,9 @@ func groupData(modelList []model.ShopMemberFollowHistory) (map[string][]model.Sh
 	return groups
 }
 
-func writeData(suffix string, modelList []model.ShopMemberFollowHistory) {
+func writeData(wg *sync.WaitGroup, suffix string, modelList []model.ShopMemberFollowHistory) {
+	defer wg.Done()
+
 	insertSql := "INSERT INTO shop_member_follow_history_" + suffix + "(id,member_id,category,type,contact_purpose,contact_status,contact_result,order_type,order_status,sales_id,visit_time,receive_time,leave_time,duration,shop_id,cabinet_id,cabinet_status,parent_id,course_cat_id,order_id,contract_id,unit,fail_reason,next_contact,content,assign_content,text,uid,staff_id,updated_time,created_time,receive_sales_id,space_id) VALUES"
 	var buf bytes.Buffer
 	buf.WriteString(insertSql)
@@ -161,10 +175,10 @@ func writeData(suffix string, modelList []model.ShopMemberFollowHistory) {
 	if err != nil {
 		panic(err)
 	}
-	rowCnt, err := res.RowsAffected()
+	_, err = res.RowsAffected()
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("插入数量", rowCnt)
+	//fmt.Println("插入数量", rowCnt)
 }

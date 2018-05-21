@@ -15,16 +15,16 @@ var DbGym *sql.DB
 
 var totalRecord int
 
-const SPAN  = 30
+const SPAN  = 10000
 
 func init() {
 	var err error
-	DbGymSecond, err = sql.Open("mysql", "root:123456@tcp(127.0.0.1:3306)/ran_gym_second")
+	DbGymSecond, err = sql.Open("mysql", "root:123456@tcp(127.0.0.1:3306)/ran_gym_second?maxAllowedPacket=0&interpolateParams=true")
 	if err != nil {
 		panic(err)
 	}
 
-	DbGym, err = sql.Open("mysql", "root:123456@tcp(127.0.0.1:3306)/ran_gym")
+	DbGym, err = sql.Open("mysql", "root:123456@tcp(127.0.0.1:3306)/ran_gym?maxAllowedPacket=0&interpolateParams=true")
 	if err != nil {
 		panic(err)
 	}
@@ -128,11 +128,6 @@ func writeData(wg *sync.WaitGroup, suffix string, modelList []model.ShopMemberFo
 		buf.WriteString(",(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 	}
 
-	stmt,err := DbGymSecond.Prepare(buf.String())
-	if err != nil {
-		panic(err)
-	}
-
 	var args []interface{}
 	for _,m := range modelList {
 		args = append(args,
@@ -171,10 +166,12 @@ func writeData(wg *sync.WaitGroup, suffix string, modelList []model.ShopMemberFo
 			m.SpaceId,
 		)
 	}
-	res, err := stmt.Exec(args...)
+
+	res, err := DbGymSecond.Exec(buf.String(), args...)
 	if err != nil {
 		panic(err)
 	}
+
 	_, err = res.RowsAffected()
 	if err != nil {
 		panic(err)

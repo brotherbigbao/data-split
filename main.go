@@ -3,7 +3,7 @@ package main
 import (
 	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/liuyibao/migration/model"
+	"github.com/liuyibao/data-split/model"
 	"fmt"
 	"bytes"
 	"sync"
